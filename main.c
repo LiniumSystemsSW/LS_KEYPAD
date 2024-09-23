@@ -145,8 +145,7 @@ void main(void)
                 default:
                     break;
             }
-        //    UART_send(&keypad_state);
-            wait_ms(100);
+            wait_ms(10);
             button_semaphore = 0;
             P2IFG =  0;                                 // P1.x IFG cleared
         }
