@@ -27,7 +27,8 @@
 //           |   CCI0A/RXD/P1.2|<--------
 //
 //  A.Guzman
-//  March 2020
+//  09/2024
+// Cada vez que una tecla es cambia de nivel, se manda el estado de todas las teclas por UART. Por ejemplo, si pulsan el boton0
 //   Built with Code Composer Studio Version: 8.2.0.00007
 //******************************************************************************
 
@@ -116,7 +117,7 @@ void main(void)
     UART_print("\r\n");
     UART_print("LS-KEYPAD-CONTROLLER v1.0\r\n");
 
-    flash( 25, 25 );
+    flash( 100, 4 );
 
     char time[] = "0";
     for(;;)
@@ -124,7 +125,7 @@ void main(void)
         if( button_semaphore )
         {
             UART_send(&keypad_state);
-            wait_ms(10);
+            wait_ms(20);
             button_semaphore = 0;
             P2IFG =  0;                                 // P1.x IFG cleared
         }
@@ -154,6 +155,7 @@ void main(void)
                 default:
                     break;
             }
+            UART_send(&keypad_state);
             if( l_button )
             {
                 UART_print("1\r\n");
