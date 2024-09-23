@@ -48,6 +48,8 @@
 #define GUN2       BIT4                     // PULSADOR PISTOLA2
 #define GUN2_MODE  BIT5                     // MODO PISTOLA2
 
+#define ENABLE  1
+#define DISABLE 0
 
 enum GUN_MODE {
     MANUAL = 0,
@@ -69,7 +71,7 @@ typedef int BUTTON;
 #define PACKAGE_START 0x5B
 #define PACKAGE_END 0x5D
 char *buffer_pointer = NULL;
-char uart_received[3];
+char uart_received[4];
 unsigned char uart_semaphore = 0;
 unsigned char process_package = 0;
 
@@ -79,6 +81,7 @@ unsigned char process_package = 0;
 //------------------------------------------------------------------------------
 void UART_init(void);
 void button_led_pins_init(void);
+void setup_P2_ints(unsigned char l_enable);
 void TimerA_UART_tx(unsigned char byte);
 void UART_print(char *string);
 void UART_send(unsigned char *l_byte);
@@ -87,12 +90,13 @@ unsigned int get_button_state(BUTTON l_gun);
 void flash( int ms_cycle, int n_times );
 void wait_ms( int ms_cycle);
 void integer_to_string( char *str, unsigned int number );
+void setup_debounce_time( unsigned char t_ms );
 
 unsigned char button_semaphore = 0;
 BUTTON button = 0;
-unsigned long  timer_counts = 0;
 unsigned int button_state=0;
 unsigned char keypad_state = 0x00;
+unsigned char debounce_time = 20;
 
 
 /**
@@ -124,45 +128,25 @@ void main(void)
     {
         if( button_semaphore )
         {
+            setup_P2_ints( DISABLE );
             UART_send(&keypad_state);
-            wait_ms(20);
+            wait_ms(debounce_time);
             button_semaphore = 0;
             P2IFG =  0;                                 // P1.x IFG cleared
+            setup_P2_ints( ENABLE );
         }
 
         if ( process_package )
         {
-            unsigned char l_button = 0;
             switch (uart_received[1]) {
-                case '0':
-                    l_button = get_button_state(BUTTON_GUN0);
+                case 'k':
+                    UART_send(&keypad_state);
                     break;
-                case '1':
-                    l_button = get_button_state(BUTTON_GUN0_MODE);
-                    break;
-                case '2':
-                    l_button = get_button_state(BUTTON_GUN1);
-                    break;
-                case '3':
-                    l_button = get_button_state(BUTTON_GUN1_MODE);
-                    break;
-                case '4':
-                    l_button = get_button_state(BUTTON_GUN2);
-                    break;
-                case '5':
-                    l_button = get_button_state(BUTTON_GUN2_MODE);
+                case 'd':
+                    setup_debounce_time(uart_received[2]);
                     break;
                 default:
                     break;
-            }
-            UART_send(&keypad_state);
-            if( l_button )
-            {
-                UART_print("1\r\n");
-            }
-            else
-            {
-                UART_print("0\r\n");
             }
             process_package = 0;
         }
@@ -403,4 +387,21 @@ unsigned int get_button_state(BUTTON l_gun)
 {
     keypad_state = ~(P2IN&0x1F);
     return ((P2IN&(BIT0<<l_gun))&&BIT0);
+}
+
+void setup_P2_ints(unsigned char l_enable)
+{
+    if( l_enable )
+    {
+        P2IE  = GUN0 + GUN0_MODE + GUN1 + GUN1_MODE + GUN2 + GUN2_MODE; // Ints enabled on all buttons
+    }
+    else
+    {
+        P2IE = 0x00;
+    }
+}
+
+void setup_debounce_time( unsigned char t_ms )
+{
+    debounce_time = t_ms;
 }
