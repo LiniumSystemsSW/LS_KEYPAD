@@ -123,33 +123,12 @@ void main(void)
     {
         if( button_semaphore )
         {
-            switch (button) {
-                case BUTTON_GUN0:
-                    //UART_print("BUTTON_GUN0\r\n");
-                    break;
-                case BUTTON_GUN0_MODE:
-                    //UART_print("BUTTON_GUN0_MODE\r\n");
-                    break;
-                case BUTTON_GUN1:
-                    //UART_print("BUTTON_GUN1\r\n");
-                    break;
-                case BUTTON_GUN1_MODE:
-                    //UART_print("BUTTON_GUN1_MODE\r\n");
-                    break;
-                case BUTTON_GUN2:
-                    //UART_print("BUTTON_GUN2\r\n");
-                    break;
-                case BUTTON_GUN2_MODE:
-                    //UART_print("BUTTON_GUN2_MODE\r\n");
-                    break;
-                default:
-                    break;
-            }
+            UART_send(&keypad_state);
             wait_ms(10);
             button_semaphore = 0;
             P2IFG =  0;                                 // P1.x IFG cleared
         }
-        button_state = get_button_state( BUTTON_GUN2_MODE );
+
         if ( process_package )
         {
             unsigned char l_button = 0;
@@ -420,5 +399,6 @@ void wait_ms(int ms_cycle)
 
 unsigned int get_button_state(BUTTON l_gun)
 {
+    keypad_state = ~(P2IN&0x1F);
     return ((P2IN&(BIT0<<l_gun))&&BIT0);
 }
