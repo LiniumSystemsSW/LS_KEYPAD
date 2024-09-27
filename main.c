@@ -68,8 +68,8 @@ enum BUTTON_NUMBER {
 typedef int BUTTON;
 
 // COMS
-#define PACKAGE_START 0x5B
-#define PACKAGE_END 0x5D
+#define PACKAGE_START 0x55
+#define PACKAGE_END 0xAA
 char *buffer_pointer = NULL;
 char uart_received[4];
 unsigned char uart_semaphore = 0;
@@ -123,7 +123,6 @@ void main(void)
 
     flash( 100, 4 );
 
-    char time[] = "0";
     for(;;)
     {
         if( button_semaphore )
@@ -170,7 +169,7 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
         switch (P2IFG) {
             case GUN0:
                 button = BUTTON_GUN0;
-                if( P1OUT & GUN0 ) // si led encendido, es que venimos de boton presionado
+                if( P1IN & GUN0 ) // si led encendido, es que venimos de boton presionado
                 {
                     P1OUT &= ~GUN0; // Apago led
                     keypad_state &= ~GUN0; // BIT0 del keypad_state a 0
@@ -185,7 +184,7 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
                 break;
             case GUN0_MODE:
                 button = BUTTON_GUN0_MODE;
-                if( P1OUT & GUN0 ) // si led encendido, es que venimos de boton presionado
+                if( P1IN & GUN0_MODE ) // si led encendido, es que venimos de boton presionado
                 {
                     P1OUT &= ~GUN0; // Apago led
                     keypad_state &= ~GUN0_MODE;
@@ -200,7 +199,7 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
                 break;
             case GUN1:
                 button = BUTTON_GUN1;
-                if( P1OUT & GUN0 ) // si led encendido, es que venimos de boton presionado
+                if( P1IN & GUN1 ) // si led encendido, es que venimos de boton presionado
                 {
                     P1OUT &= ~GUN0; // Apago led
                     keypad_state &= ~GUN1; //
@@ -215,7 +214,7 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
                 break;
             case GUN1_MODE:
                 button = BUTTON_GUN1_MODE;
-                if( P1OUT & GUN0 ) // si led encendido, es que venimos de boton presionado
+                if( P1IN & GUN1_MODE ) // si led encendido, es que venimos de boton presionado
                 {
                     P1OUT &= ~GUN0; // Apago led
                     keypad_state &= ~GUN1_MODE; //
@@ -230,7 +229,7 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
                 break;
             case GUN2:
                 button = BUTTON_GUN2;
-                if( P1OUT & GUN0 ) // si led encendido, es que venimos de boton presionado
+                if( P1IN & GUN2 ) // si led encendido, es que venimos de boton presionado
                 {
                     P1OUT &= ~GUN0; // Apago led
                     keypad_state &= ~GUN2; //
@@ -245,7 +244,7 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
                 break;
             case GUN2_MODE:
                 button = BUTTON_GUN2_MODE;
-                if( P1OUT & GUN0 ) // si led encendido, es que venimos de boton presionado
+                if( P1IN & GUN2_MODE ) // si led encendido, es que venimos de boton presionado
                 {
                     P1OUT &= ~GUN0; // Apago led
                     keypad_state &= ~GUN2_MODE; //
@@ -355,8 +354,11 @@ void UART_print( char *string )
 void UART_send(unsigned char *l_byte)
 {
     while (!(IFG2&UCA0TXIFG));                // USCI_A0 TX buffer ready?
+    UCA0TXBUF = PACKAGE_START;                      // TX -> next character character
+    while (!(IFG2&UCA0TXIFG));                // USCI_A0 TX buffer ready?
     UCA0TXBUF = *l_byte;                      // TX -> next character character
-
+    while (!(IFG2&UCA0TXIFG));                // USCI_A0 TX buffer ready?
+    UCA0TXBUF = PACKAGE_END;                      // TX -> next character character
 }
 
 
