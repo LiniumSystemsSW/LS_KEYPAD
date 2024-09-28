@@ -95,9 +95,8 @@ void setup_debounce_time( unsigned char t_ms );
 unsigned char button_semaphore = 0;
 BUTTON button = 0;
 unsigned int button_state=0;
-unsigned char keypad_state = 0x00;
 unsigned char debounce_time = 20;
-
+unsigned char keypad_state = 0x00, keypad_state_prev = 0x00;
 
 /**
  * blink.c
@@ -117,6 +116,7 @@ void main(void)
     timer_init();
 
     __enable_interrupt();
+    setup_P2_ints( DISABLE );
 
     UART_print("\r\n");
     UART_print("LS-KEYPAD-CONTROLLER v1.0\r\n");
@@ -125,15 +125,13 @@ void main(void)
 
     for(;;)
     {
-        if( button_semaphore )
-        {
-            setup_P2_ints( DISABLE );
-            UART_send(&keypad_state);
-            wait_ms(debounce_time);
-            button_semaphore = 0;
-            P2IFG =  0;                                 // P1.x IFG cleared
-            setup_P2_ints( ENABLE );
-        }
+            keypad_state = ~(P2IN&0x3F);
+            if( keypad_state != keypad_state_prev)
+            {
+                keypad_state_prev = keypad_state;
+                UART_send(&keypad_state);
+                wait_ms(debounce_time);
+            }
 
         if ( process_package )
         {
@@ -148,6 +146,15 @@ void main(void)
                     break;
             }
             process_package = 0;
+        }
+
+        if( (P2IN&0x3F) < 0x3F )
+        {
+            P1OUT |= BIT0;
+        }
+        else
+        {
+            P1OUT &= ~BIT0;
         }
     }
 
