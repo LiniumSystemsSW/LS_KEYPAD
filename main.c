@@ -74,7 +74,8 @@ enum ROTARY_STATE {
 
 enum ROTATION {
     CLOCKWISE = 0,
-    ANTI_CLOCKWISE
+    ANTI_CLOCKWISE,
+    CLICK
 };
 
 typedef int BUTTON;
@@ -96,7 +97,8 @@ void button_led_pins_init(void);
 void setup_P2_ints(unsigned char l_enable);
 void TimerA_UART_tx(unsigned char byte);
 void UART_print(char *string);
-void UART_send(unsigned char *l_byte);
+void UART_send_keypad(unsigned char *l_byte);
+void UART_send_rotary(unsigned char *l_byte);
 void timer_init(void);
 unsigned int get_button_state(BUTTON l_gun);
 void flash( int ms_cycle, int n_times );
@@ -111,6 +113,7 @@ unsigned int button_state=0;
 unsigned char debounce_time = 20;
 unsigned char keypad_state = 0x00, keypad_state_prev = 0x00;
 unsigned char rotary_state = 0x00, rotary_state_prev = 0x00;
+unsigned char rotary_state_key = 0, rotary_state_key_prev = 0;
 unsigned char signal_a = 0, signal_b = 0, rotary_state_machine = STATE_1, rotating = CLOCKWISE;
 signed char pos = 0;
 
@@ -144,55 +147,78 @@ void main(void)
 
     for(;;)
     {
-            rotary_state = ~(P1IN&0x31);
+            rotary_state = ~(P1IN&0x30);
             if( rotary_state != rotary_state_prev)
             {
+                wait_ms(2);
+                rotary_state = ~(P1IN&0x31);
                 rotary_state_prev = rotary_state;
                 process_rotary_state();
                 //UART_send(&rotary_state);
-                if( rotating == CLOCKWISE )
+                if( pos >= 3 )
                 {
-                    UART_print("R\r\n");
+                    UART_print("L\n\r");
+                    //UART_send_rotary(CLOCKWISE);
+                    pos = 0;
                 }
-                else
+                else if ( pos <= -3)
                 {
-                    UART_print("L\r\n");
+                    UART_print("R\n\r");
+                    //UART_send_rotary(ANTI_CLOCKWISE);
+                    pos = 0;
                 }
-                __delay_cycles(100);
             }
 
+            rotary_state_key = ~(P1IN&0x01);
+            if( rotary_state_key != rotary_state_key_prev && button_semaphore )
+            {
+                wait_ms(100);
+                rotary_state_key = ~(P1IN&0x01);
+                rotary_state_key_prev = rotary_state_key;
+                UART_print("C\n\r");
+                //UART_send_rotary(CLICK);
+                button_semaphore = 0;
+            }
+            else if( rotary_state_key != rotary_state_key_prev )
+            {
+                wait_ms(100);
+                rotary_state_key = ~(P1IN&0x01);
+                rotary_state_key_prev = ~(0x01);
+                button_semaphore = 1;
+            }
 
             keypad_state = ~(P2IN&0x3F);
             if( keypad_state != keypad_state_prev)
             {
                 keypad_state_prev = keypad_state;
-                UART_send(&keypad_state);
                 wait_ms(debounce_time);
+                keypad_state = ~(P2IN&0x3F);
+                UART_send_keypad(&keypad_state);
             }
 
-        if ( process_package )
-        {
-            switch (uart_received[1]) {
-                case 'k':
-                    UART_send(&keypad_state);
-                    break;
-                case 'd':
-                    setup_debounce_time(uart_received[2]);
-                    break;
-                default:
-                    break;
+            if ( process_package )
+            {
+                switch (uart_received[1]) {
+                    case 'k':
+                        UART_send_keypad(&keypad_state);
+                        break;
+                    case 'd':
+                        setup_debounce_time(uart_received[2]);
+                        break;
+                    default:
+                        break;
+                }
+                process_package = 0;
             }
-            process_package = 0;
-        }
 
-        if( ((P2IN&0x3F) < 0x3F) || ((P1IN&0x31) < 0x31 ) )
-        {
-           // P1OUT |= BIT6;
-        }
-        else
-        {
-            //P1OUT &= ~BIT6;
-        }
+            if( ((P2IN&0x3F) < 0x3F) || ((P1IN&0x31) < 0x31 ) )
+            {
+               // P1OUT |= BIT6;
+            }
+            else
+            {
+                //P1OUT &= ~BIT6;
+            }
     }
 
 }
@@ -395,16 +421,29 @@ void UART_print( char *string )
    }
 }
 
-void UART_send(unsigned char *l_byte)
+void UART_send_keypad(unsigned char *l_byte)
 {
     while (!(IFG2&UCA0TXIFG));                // USCI_A0 TX buffer ready?
     UCA0TXBUF = PACKAGE_START;                      // TX -> next character character
+    while (!(IFG2&UCA0TXIFG));                // USCI_A0 TX buffer ready?
+    UCA0TXBUF = 'K';
     while (!(IFG2&UCA0TXIFG));                // USCI_A0 TX buffer ready?
     UCA0TXBUF = *l_byte;                      // TX -> next character character
     while (!(IFG2&UCA0TXIFG));                // USCI_A0 TX buffer ready?
     UCA0TXBUF = PACKAGE_END;                      // TX -> next character character
 }
 
+void UART_send_rotary(unsigned char *l_byte)
+{
+    while (!(IFG2&UCA0TXIFG));                // USCI_A0 TX buffer ready?
+    UCA0TXBUF = PACKAGE_START;                      // TX -> next character character
+    while (!(IFG2&UCA0TXIFG));                // USCI_A0 TX buffer ready?
+    UCA0TXBUF = 'R';                          // TX -> next character character
+    while (!(IFG2&UCA0TXIFG));                // USCI_A0 TX buffer ready?
+    UCA0TXBUF = *l_byte;                      // TX -> next character character
+    while (!(IFG2&UCA0TXIFG));                // USCI_A0 TX buffer ready?
+    UCA0TXBUF = PACKAGE_END;                      // TX -> next character character
+}
 
 void flash( int ms_cycle, int n_times )
 {
