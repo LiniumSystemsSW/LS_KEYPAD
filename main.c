@@ -65,6 +65,18 @@ enum BUTTON_NUMBER {
     BUTTON_GUN2_MODE,
 };
 
+enum ROTARY_STATE {
+    STATE_1 = 0,
+    STATE_2,
+    STATE_3,
+    STATE_4
+};
+
+enum ROTATION {
+    CLOCKWISE = 0,
+    ANTI_CLOCKWISE
+};
+
 typedef int BUTTON;
 
 // COMS
@@ -91,18 +103,23 @@ void flash( int ms_cycle, int n_times );
 void wait_ms( int ms_cycle);
 void integer_to_string( char *str, unsigned int number );
 void setup_debounce_time( unsigned char t_ms );
+void process_rotary_state();
 
 unsigned char button_semaphore = 0;
 BUTTON button = 0;
 unsigned int button_state=0;
 unsigned char debounce_time = 20;
 unsigned char keypad_state = 0x00, keypad_state_prev = 0x00;
+unsigned char rotary_state = 0x00, rotary_state_prev = 0x00;
+unsigned char signal_a = 0, signal_b = 0, rotary_state_machine = STATE_1, rotating = CLOCKWISE;
+signed char pos = 0;
 
 /**
  * blink.c
  */
 void main(void)
 {
+
     WDTCTL = WDTPW + WDTHOLD;                   // Stop WDT
     if (CALBC1_1MHZ==0xFF)                      // If calibration constant erased
     {
@@ -120,11 +137,31 @@ void main(void)
 
     UART_print("\r\n");
     UART_print("LS-KEYPAD-CONTROLLER v1.0\r\n");
+    rotary_state_prev = rotary_state;
+    keypad_state_prev = keypad_state;
 
     flash( 100, 4 );
 
     for(;;)
     {
+            rotary_state = ~(P1IN&0x31);
+            if( rotary_state != rotary_state_prev)
+            {
+                rotary_state_prev = rotary_state;
+                process_rotary_state();
+                //UART_send(&rotary_state);
+                if( rotating == CLOCKWISE )
+                {
+                    UART_print("R\r\n");
+                }
+                else
+                {
+                    UART_print("L\r\n");
+                }
+                __delay_cycles(100);
+            }
+
+
             keypad_state = ~(P2IN&0x3F);
             if( keypad_state != keypad_state_prev)
             {
@@ -148,13 +185,13 @@ void main(void)
             process_package = 0;
         }
 
-        if( (P2IN&0x3F) < 0x3F )
+        if( ((P2IN&0x3F) < 0x3F) || ((P1IN&0x31) < 0x31 ) )
         {
-            P1OUT |= BIT0;
+           // P1OUT |= BIT6;
         }
         else
         {
-            P1OUT &= ~BIT0;
+            //P1OUT &= ~BIT6;
         }
     }
 
@@ -332,11 +369,11 @@ void button_led_pins_init(void)
     /*P1.4, P1.5 y P1.6 son los leds de los botones*/
     /*P2.0..2.5 son los botones e interruptores*/
 
-    P1DIR = BIT0 + BIT1;                        // Set all P1.x to input direction except TX and LED
+    P1DIR = BIT1 + BIT6;                        // Set all P1.x to input direction except TX and LED6
     P1IE =  BIT2;                               // All P1.x interrupts disbled except RX
     P1IES = BIT2;                               // P1.3 and P1.4 Hi/lo edge
-    P1REN = ~( BIT0 + BIT1 + BIT2 );            // Enable Pull Up on every pin except P1.0, P1.1 and P1.2
-    P1IFG =  0;                                 // P1.x IFG cleared
+    P1REN = ~( BIT1 + BIT2 );                   // Enable Pull Up on every pin except P1.1(TX) and P1.2(RX)
+    P1OUT = BIT0 + BIT4 + BIT5;
 
     P2DIR = 0x00;                               // Set all P2.x to INPUT direction
     P2IE  = GUN0 + GUN0_MODE + GUN1 + GUN1_MODE + GUN2 + GUN2_MODE; // Ints enabled on all buttons
@@ -374,13 +411,13 @@ void flash( int ms_cycle, int n_times )
     int l_var0 = n_times;
     for( l_var0 = n_times; l_var0 > 0; l_var0-- )
     {
-        P1OUT ^= BIT0;
+        P1OUT ^= BIT6;
         wait_ms(ms_cycle);
-        P1OUT ^= BIT0;
+        P1OUT ^= BIT6;
         wait_ms(ms_cycle);
     }
 
-    P1OUT &= ~( BIT0 );
+    P1OUT &= ~( BIT6 );
 }
 
 void wait_ms(int ms_cycle)
@@ -414,3 +451,71 @@ void setup_debounce_time( unsigned char t_ms )
 {
     debounce_time = t_ms;
 }
+
+void process_rotary_state()
+{
+    signal_a = (P1IN&0x10)>>4;
+    signal_b = (P1IN&0x20)>>5;
+
+    switch ( rotary_state_machine )
+    {
+        case STATE_1:
+            if( signal_a && !signal_b )
+            {
+                rotary_state_machine = STATE_2;
+                rotating = CLOCKWISE;
+                pos++;
+            }
+            else if( !signal_a && signal_b )
+            {
+                rotary_state_machine = STATE_4;
+                rotating = ANTI_CLOCKWISE;
+                pos--;
+            }
+
+            break;
+        case STATE_2:
+            if( signal_a && signal_b )
+            {
+                rotary_state_machine = STATE_3;
+                rotating = CLOCKWISE;
+                pos++;
+            }
+            else if( !signal_a && !signal_b )
+            {
+                rotary_state_machine = STATE_1;
+                rotating = ANTI_CLOCKWISE;
+                pos--;
+            }
+            break;
+        case STATE_3:
+            if( !signal_a && signal_b )
+            {
+                rotary_state_machine = STATE_4;
+                rotating = CLOCKWISE;
+                pos++;
+            }
+            else if( signal_a && !signal_b )
+            {
+                rotary_state_machine = STATE_2;
+                rotating = ANTI_CLOCKWISE;
+                pos--;
+            }
+            break;
+        case STATE_4:
+            if( !signal_a && !signal_b )
+            {
+                rotary_state_machine = STATE_1;
+                rotating = CLOCKWISE;
+                pos++;
+            }
+            else if( signal_a && signal_b )
+            {
+                rotary_state_machine = STATE_3;
+                rotating = ANTI_CLOCKWISE;
+                pos--;
+            }
+            break;
+    }
+}
+
