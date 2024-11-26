@@ -157,14 +157,14 @@ void main(void)
                 //UART_send(&rotary_state);
                 if( pos >= 3 )
                 {
-                    UART_print("L\n\r");
-                    //UART_send_rotary(CLOCKWISE);
+                    //UART_print("L\n\r");
+                    UART_send_rotary(CLOCKWISE);
                     pos = 0;
                 }
                 else if ( pos <= -3)
                 {
-                    UART_print("R\n\r");
-                    //UART_send_rotary(ANTI_CLOCKWISE);
+                    //UART_print("R\n\r");
+                    UART_send_rotary(ANTI_CLOCKWISE);
                     pos = 0;
                 }
             }
@@ -175,8 +175,8 @@ void main(void)
                 wait_ms(100);
                 rotary_state_key = ~(P1IN&0x01);
                 rotary_state_key_prev = rotary_state_key;
-                UART_print("C\n\r");
-                //UART_send_rotary(CLICK);
+                //UART_print("C\n\r");
+                UART_send_rotary(CLICK);
                 button_semaphore = 0;
             }
             else if( rotary_state_key != rotary_state_key_prev )
